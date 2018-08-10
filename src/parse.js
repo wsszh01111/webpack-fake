@@ -2,6 +2,7 @@ const esprima = require("esprima");
 
 /**
  * traverse AST with DFS（depth first search）
+ * Learn more about Parser API:https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Parser_API
  * Learn more about esprima:http://esprima.readthedocs.io/en/latest/getting-started.html
  * Question:
  *     - when could MethodDefinition.value be an 'null'
@@ -96,6 +97,123 @@ const parseExpression = (expression) => {
     switch(expression.type){
         case 'FunctionExpression':
             parseStatement(expression.body); //FunctionExpression.body=>BlockStatement
+            break;
+        case 'ArrayPattern': 
+            //ArrayPattern.elements=>ArrayPatternElement[]
+            //type ArrayPatternElement = AssignmentPattern | Identifier | BindingPattern | RestElement | null;
+            expression.elements.forEach(element=>element?parseExpression(element):null);
+            break;
+        case 'AssignmentPattern':
+            parseExpression(expression.left); //AssignmentPattern.left=>Identifier | BindingPattern
+            parseExpression(expression.right); //AssignmentPattern.right=>Expression
+            break;
+        case 'RestElement': //RestElement.argument=>Identifier | BindingPattern
+            parseExpression(expression.argument);
+            break;
+        case 'ObjectPattern': //ObjectPattern.properties=>Property[]
+            expression.proproperties.forEach(property=>parseExpression(property));
+            break;
+        case 'Property':
+            parseExpression(expression.key);
+            if (expression.value) {
+                parseExpression(expression.value);
+            }
+            break;
+        case 'ArrayExpression':
+            // ArrayExpression.elements=>ArrayExpressionElement[]
+            // type ArrayExpressionElement = Expression | SpreadElement;
+            expression.elements.forEach(element=>parseExpression(element));
+            break;
+        case 'SpreadElement':
+            parseExpression(expression.argument);
+            break;
+        case 'ObjectExpression':
+            expression.proproperties.forEach(property=>parseExpression(property));
+            break;
+        case 'FunctionExpression':
+            expression.params.forEach(param=>parseExpression(param))
+            parseStatement(expression.body);
+            break;
+        case 'ArrowFunctionExpression':
+            expression.params.forEach(param=>parseExpression(param))
+            if (expression.body.type === 'BlockStatement') {
+                parseStatement(expression.body);
+            }else{ //Expression
+                parseExpression(expression.body);
+            }
+            break;
+        case 'ClassExpression':
+            parseClass(expression.body);
+            break;
+        case 'TaggedTemplateExpression':
+            parseExpression(expression.tag);
+            parseTemplate(expression.quasi);
+            break;
+        case 'MemberExpression':
+            parseExpression(expression.object);
+            parseExpression(expression.property);
+            break;
+        case 'CallExpression':
+            if (expression.callee.name === 'require') {
+                if (expression.arguments.length > 0) {
+                    expression.arguments[0].value;
+                }
+            }else{
+                expression.arguments.forEach(argument=>parseExpression(argument));
+            }
+            break;
+        case 'NewExpression':
+            parseExpression(expression.callee);
+            expression.arguments.forEach(argument=>parseExpression(argument));
+            break;
+        case 'UpdateExpression':
+            parseExpression(expression.argument);
+            break;
+        case 'AwaitExpression':
+            parseExpression(expression.argument);
+            break;
+        case 'UnaryExpression':
+            parseExpression(expression.argument);
+            break;
+        case 'BinaryExpression':
+            parseExpression(expression.left);
+            parseExpression(expression.right);
+            break;
+        case 'LogicalExpression':
+            parseExpression(expression.left);
+            parseExpression(expression.right);
+            break;
+        case 'ConditionalExpression':
+            parseExpression(expression.test);
+            parseExpression(expression.consequent);
+            parseExpression(expression.alternate);
+            break;
+        case 'YieldExpression':
+            if (expression.argument) {
+                parseExpression(expression.argument);
+            }
+            break;
+        case 'AssignmentExpression':
+            parseExpression(expression.left);
+            parseExpression(expression.right);
+            break;
+        case 'SequenceExpression':
+            expression.expressions.forEach(e=>parseExpression(e));
+            break;
+        default:
+            // do nothing
+            // include Identifier/ThisExpression/Literal/Super/MetaProperty
+            break;
+    }
+}
+
+const parseTemplate = (templateContent) => {
+    switch(templateContent.type){
+        case 'TemplateLiteral':
+            templateContent.expressions.forEach(expression=>parseExpression(expression));
+            break;
+        default:
+            // include TemplateElement
             break;
     }
 }
